@@ -1,30 +1,50 @@
-# Streamlit
+pip install streamlit langchain openai faiss-cpu chromadb unstructured
+from langchain.document_loaders import UnstructuredFileLoader
+from langchain.text_splitter import CharacterTextSplitter
+from langchain.embeddings import OpenAIEmbeddings
+from langchain.vectorstores import FAISS
+import os
 
->[Streamlit](https://streamlit.io/) is a faster way to build and share data apps.
->`Streamlit` turns data scripts into shareable web apps in minutes. All in pure Python. No front‑end experience required.
->See more examples at [streamlit.io/generative-ai](https://streamlit.io/generative-ai).
+# Configuración de la clave de API de OpenAI
+os.environ["OPENAI_API_KEY"] = "tu_clave_api"
 
-## Installation and Setup
+def cargar_documento(path):
+    loader = UnstructuredFileLoader(path)
+    docs = loader.load()
 
-We need to install the  `streamlit` Python package:
+    splitter = CharacterTextSplitter(chunk_size=500, chunk_overlap=50)
+    chunks = splitter.split_documents(docs)
 
-```bash
-pip install streamlit
-```
+    embeddings = OpenAIEmbeddings()
+    vectorstore = FAISS.from_documents(chunks, embeddings)
+    vectorstore.save_local("refaccionaria_ia")
+import streamlit as st
+from langchain.vectorstores import FAISS
+from langchain.embeddings import OpenAIEmbeddings
+from langchain.chains import RetrievalQA
+from langchain.chat_models import ChatOpenAI
 
+# Cargar la base de conocimiento
+vectorstore = FAISS.load_local("refaccionaria_ia", OpenAIEmbeddings())
+retriever = vectorstore.as_retriever()
 
-## Memory
+# Configurar el modelo de lenguaje
+llm = ChatOpenAI(model="gpt-4", temperature=0)
+qa_chain = RetrievalQA.from_chain_type(llm=llm, retriever=retriever)
 
-See a [usage example](/docs/integrations/memory/streamlit_chat_message_history).
+# Interfaz de usuario
+st.title("Asistente Virtual para Refaccionarias")
+st.write("Sube un documento para alimentar la IA y luego haz una pregunta.")
 
-```python
-from langchain_community.chat_message_histories import StreamlitChatMessageHistory
-```
+# Cargar documento
+uploaded_file = st.file_uploader("Sube un archivo PDF, Excel o Word", type=["pdf", "xlsx", "docx"])
+if uploaded_file is not None:
+    with open("documento_temporal", "wb") as f:
+        f.write(uploaded_file.read())
+    cargar_documento("documento_temporal")
 
-## Callbacks
-
-See a [usage example](/docs/integrations/callbacks/streamlit).
-
-```python
-from langchain_community.callbacks import StreamlitCallbackHandler
-```
+# Preguntar a la IA
+pregunta = st.text_input("¿En qué puedo ayudarte?")
+if pregunta:
+    respuesta = qa_chain.run(pregunta)
+    st.write(respuesta)
